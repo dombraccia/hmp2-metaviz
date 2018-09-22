@@ -1,0 +1,249 @@
+---
+title: "hmp2MetaViz-checklist"
+author: "Domenick Braccia"
+date: "September 21st, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "~/Desktop/UMD/hcbravolab/hmp2-metaviz/IBD/")
+```
+
+This document will address all of the items listed on the slack thread posted on Wednesday July 18th between Domenick and Justin. These items will be listed as subheadings below
+
+## Loading libraries
+
+```{r, message=FALSE}
+library(metagenomeSeq)
+library(ggplot2)
+```
+
+## Loading data
+
+The code in the next chunck will use `source()` to run two scripts for generation of the pilot and biposy mrexp objects. For consistensy, the code used to generate these mrexp objects is nearly identical to code sent by Justin. Filtering and normalization is performed within the mrexp generation scripts as well.
+
+**NOTE**: sourcing these two scripts will add two objects to the environment: `pilot_mrexp` and `biopsy_mrexp` which will be used later in this document.
+
+```{r, warning=FALSE}
+source("pilot-mrexp-generation.R")
+source("biopsy-mrexp-generation.R")
+```
+
+# Slack Items
+
+The following items were listed on Justin & Domenick's slack conversation on July 18th, 2018 as things that needed to be completed:
+
+1. **DONE** Table 1: Look at eachother's code and results for the two features found using fitFeatureModel
+2. **DONE** Figure 3: Double check feature using metagenomeSeq with Metaviz - Justin probably provide workspace
+3. **DONE** Move appendix B from dissertation into Supplementary Materials 
+4. Check all Supplementary Materials
+- Appendix B, Table 3
+- **DONE** Appendix B, Table 4 
+5. Figure 4: Double check feature using fitZig with Metaviz
+6. **DONE** Figure 5: Domenick send results and analysis that are similar - Justin send code and metaviz workspace 
+
+Some of these items have already been completed, while some of them will be addressed in this document. Also - some items may be out of order.
+
+## 4. Checking All Supplementary material
+
+### Appendix B, Table 3: F-statistic Calculation
+
+```{r}
+
+```
+
+### Appendix B, Table 4: Differential Abundance Testing Results for Pair-Wise comparison of CD, UC, nonIBD
+
+After performing pair-wise differential abundance testing, I found that many of the same significant features turned up. However, my calculations seemed to yield more strict adjusted p-values than Justin's calculations. The code blow will generate these results tables for further inspection.
+
+```{r}
+### initializing some variables
+
+# setting the feature order
+feature_order <- colnames(fData(biopsy_mrexp))
+
+# finding indicies for groups to be compared
+uc_and_nonIBD <- which(pData(biopsy_mrexp)$diagnosis %in% c("nonIBD", "UC"))
+cd_and_nonIBD <- which(pData(biopsy_mrexp)$diagnosis %in% c("nonIBD", "CD"))
+uc_and_cd <- which(pData(biopsy_mrexp)$diagnosis %in% c("CD", "UC"))
+
+### initializing the run_fitFitFeatMod function
+
+run_fitFeatMod <- function(mrexp_obj, tax, groups) {
+  
+  # aggregating the counts to appropriate level for analysis
+  agg_mrexp <- aggregateByTaxonomy(mrexp_obj, lvl = tax, featureOrder = feature_order)
+  
+  # set norm factors
+  normFactors(agg_mrexp) <- normFactors(mrexp_obj)
+  
+  # subset the mrexp obj by diagnosis
+  agg_groups_mrexp <- agg_mrexp[, which(pData(mrexp_obj)$diagnosis %in% groups)]
+  agg_groups_prepmod <- pData(agg_mrexp[, which(pData(mrexp_obj)$diagnosis %in% groups)])$diagnosis
+  
+  # releveling the "pre" model matrix based on what groups are being compared
+  if ("nonIBD" %in% groups) {
+    relevel(agg_groups_prepmod, "nonIBD")
+  } else (relevel(agg_groups_prepmod, "CD"))
+  
+  # set model matrix
+  agg_groups_mod <- model.matrix(~agg_groups_prepmod)
+  
+  # run fitFeatureModel
+  fit_feat_mod_results <- fitFeatureModel(agg_groups_mrexp, agg_groups_mod)
+
+  # use MRcoefs() to extract results
+  fit_feat_mod_MRcoefs <- MRcoefs(fit_feat_mod_results, number = 50) #change value for number to see more features
+  fit_feat_mod_MRcoefs <- fit_feat_mod_MRcoefs[order(fit_feat_mod_MRcoefs$adjPvalues),]
+  return(fit_feat_mod_MRcoefs)
+}
+
+```
+
+run_fitFeatMod(mrexp_obj = biopsy_mrexp, tax = "genus", groups = c("UC", "nonIBD"))
+MRcounts(fit_feat_mod_results)
+
+#### Running `run_fitFeatMod` on all levels of taxonomy and all combinations of diagnoses. Species, genera, etc. with adjPvalue < 0.1 displayed.
+
+```{r, message=FALSE, warning=FALSE}
+### UC vs. nonIBD
+UC_nonIBD_species_res <- run_fitFeatMod(mrexp_obj = biopsy_mrexp, tax = "species", groups = c("UC", "nonIBD"))
+subset(UC_nonIBD_species_res, adjPvalues < 0.1)
+UC_nonIBD_genus_res <- run_fitFeatMod(mrexp_obj = biopsy_mrexp, tax = "genus", groups = c("UC", "nonIBD"))
+subset(UC_nonIBD_genus_res, adjPvalues < 0.1)
+UC_nonIBD_family_res <- run_fitFeatMod(mrexp_obj = biopsy_mrexp, tax = "family", groups = c("UC", "nonIBD"))
+subset(UC_nonIBD_family_res, adjPvalues < 0.1)
+UC_nonIBD_order_res <- run_fitFeatMod(mrexp_obj = biopsy_mrexp, tax = "order", groups = c("UC", "nonIBD"))
+subset(UC_nonIBD_order_res, adjPvalues < 0.1)
+UC_nonIBD_class_res <- run_fitFeatMod(mrexp_obj = biopsy_mrexp, tax = "class", groups = c("UC", "nonIBD"))
+subset(UC_nonIBD_class_res, adjPvalues < 0.1)
+UC_nonIBD_phylum_res <- run_fitFeatMod(mrexp_obj = biopsy_mrexp, tax = "phylum", groups = c("UC", "nonIBD"))
+subset(UC_nonIBD_phylum_res, adjPvalues < 0.1)
+UC_nonIBD_kingdom_res <- run_fitFeatMod(mrexp_obj = biopsy_mrexp, tax = "kingdom", groups = c("UC", "nonIBD"))
+subset(UC_nonIBD_kingdom_res, adjPvalues < 0.1)
+
+### CD vs. nonIBD
+CD_nonIBD_species_res <- run_fitFeatMod(mrexp_obj = biopsy_mrexp, tax = "species", groups = c("CD", "nonIBD"))
+subset(CD_nonIBD_species_res, adjPvalues < 0.1)
+CD_nonIBD_genus_res <- run_fitFeatMod(mrexp_obj = biopsy_mrexp, tax = "genus", groups = c("CD", "nonIBD"))
+subset(CD_nonIBD_genus_res, adjPvalues < 0.1)
+CD_nonIBD_family_res <- run_fitFeatMod(mrexp_obj = biopsy_mrexp, tax = "family", groups = c("CD", "nonIBD"))
+subset(CD_nonIBD_family_res, adjPvalues < 0.1)
+CD_nonIBD_order_res <- run_fitFeatMod(mrexp_obj = biopsy_mrexp, tax = "order", groups = c("CD", "nonIBD"))
+subset(CD_nonIBD_order_res, adjPvalues < 0.1)
+CD_nonIBD_class_res <- run_fitFeatMod(mrexp_obj = biopsy_mrexp, tax = "class", groups = c("CD", "nonIBD"))
+subset(CD_nonIBD_class_res, adjPvalues < 0.1)
+CD_nonIBD_phylum_res <- run_fitFeatMod(mrexp_obj = biopsy_mrexp, tax = "phylum", groups = c("CD", "nonIBD"))
+subset(CD_nonIBD_phylum_res, adjPvalues < 0.1)
+CD_nonIBD_kingdom_res <- run_fitFeatMod(mrexp_obj = biopsy_mrexp, tax = "kingdom", groups = c("CD", "nonIBD"))
+subset(CD_nonIBD_kingdom_res, adjPvalues < 0.1)
+
+### CD vs. UC
+CD_UC_species_res <- run_fitFeatMod(mrexp_obj = biopsy_mrexp, tax = "species", groups = c("CD", "UC"))
+subset(CD_UC_species_res, adjPvalues < 0.1)
+CD_UC_genus_res <- run_fitFeatMod(mrexp_obj = biopsy_mrexp, tax = "genus", groups = c("CD", "UC"))
+subset(CD_UC_genus_res, adjPvalues < 0.1)
+CD_UC_family_res <- run_fitFeatMod(mrexp_obj = biopsy_mrexp, tax = "family", groups = c("CD", "UC"))
+subset(CD_UC_family_res, adjPvalues < 0.1)
+CD_UC_order_res <- run_fitFeatMod(mrexp_obj = biopsy_mrexp, tax = "order", groups = c("CD", "UC"))
+subset(CD_UC_order_res, adjPvalues < 0.1)
+CD_UC_class_res <- run_fitFeatMod(mrexp_obj = biopsy_mrexp, tax = "class", groups = c("CD", "UC"))
+subset(CD_UC_class_res, adjPvalues < 0.1)
+CD_UC_phylum_res <- run_fitFeatMod(mrexp_obj = biopsy_mrexp, tax = "phylum", groups = c("CD", "UC"))
+subset(CD_UC_phylum_res, adjPvalues < 0.1)
+CD_UC_kingdom_res <- run_fitFeatMod(mrexp_obj = biopsy_mrexp, tax = "kingdom", groups = c("CD", "UC"))
+subset(CD_UC_kingdom_res, adjPvalues < 0.1)
+```
+
+## 1. Checking results from Table 1
+
+This section confirms the results presented in table 1 of the manuscript with the code below.
+
+```{r, warning=FALSE}
+head(run_fitFeatMod(mrexp_obj = pilot_mrexp, tax = "species", groups = c("CD", "UC")), 2)
+```
+
+\pagebreak
+
+## 6. Figure 5 results confirmed with metagenomeSeq
+
+The following section is meant to confirm the figures generated by MetaViz using metagenomeSeq
+
+```{r}
+# CD vs. nonIBD
+biopsy_mrexp_genus <- aggTax(biopsy_mrexp, lvl = "genus")
+cd_and_nonIBD_biopsy_mrexp_genus <- biopsy_mrexp_genus[,cd_and_nonIBD]
+cd_and_nonIBD_biopsy_counts_genus <- MRcounts(cd_and_nonIBD_biopsy_mrexp_genus)
+
+## Fusobacterium
+fuso_counts <- log2(cd_and_nonIBD_biopsy_counts_genus[" __Fusobacterium",])
+fuso_counts[is.infinite(fuso_counts)] <- 0
+CD_nonIBD_diagnosis <- relevel(cd_and_nonIBD_biopsy_mrexp_genus$diagnosis, ref = "nonIBD") #only needs to be done once
+fuso_boxplot <- as.data.frame(cbind(as.numeric(fuso_counts), as.factor(CD_nonIBD_diagnosis)))
+
+ggplot(fuso_boxplot, aes(x = CD_nonIBD_diagnosis, y = fuso_counts)) +
+  geom_boxplot() +
+  geom_point(alpha = 0.6, size = 4) +
+  ggtitle("Fusobacterium") + xlab("Diagnosis") + ylab("log10(Fusobacterium counts)")
+
+
+## Bifidobacterium
+bifido_counts <- log2(cd_and_nonIBD_biopsy_counts_genus[" __Bifidobacterium",])
+bifido_counts[is.infinite(bifido_counts)] <- 0
+bifido_boxplot <- as.data.frame(cbind(as.numeric(bifido_counts), as.factor(CD_nonIBD_diagnosis)))
+
+ggplot(bifido_boxplot, aes(x = CD_nonIBD_diagnosis, y = bifido_counts)) +
+  geom_boxplot() +
+  geom_point(alpha = 0.6, size = 4) +
+  ggtitle("Bifidobacterium") + xlab("Diagnosis") + ylab("log10(Bifidobacterium counts)")
+
+## Coprobacter
+copro_counts <- log2(cd_and_nonIBD_biopsy_counts_genus[" __Coprobacter",])
+copro_counts[is.infinite(copro_counts)] <- 0
+copro_boxplot <- as.data.frame(cbind(as.numeric(copro_counts), as.factor(CD_nonIBD_diagnosis)))
+
+ggplot(copro_boxplot, aes(x = CD_nonIBD_diagnosis, y = copro_counts)) +
+  geom_boxplot() +
+  geom_point(alpha = 0.6, size = 4) +
+  ggtitle("Coprobacter") + xlab("Diagnosis") + ylab("log10(Coprobacter counts)")
+
+```
+
+## 2. Figure 3: Double check feature using metagenomeSeq with Metaviz 
+
+```{r}
+pilot_mrexp_species <- aggTax(pilot_mrexp, lvl = "species")
+pilot_counts_genus <- MRcounts(pilot_mrexp_species)
+
+s__369227_counts <- log2(pilot_counts_genus["s__:369227",])
+s__369227_counts[is.infinite(s__369227_counts)] <- 0
+pilot_diagnosis <- relevel(pilot_mrexp$diagnosis, ref = "CD")
+s__369227_boxplot <- as.data.frame(s__369227_counts)
+s__369227_boxplot$pilot_diagnosis <- pilot_diagnosis
+
+ggplot(s__369227_boxplot, aes(x = pilot_diagnosis, y = s__369227_counts)) +
+  geom_boxplot() +
+  geom_point(alpha = 0.6, size = 4) +
+  ggtitle("s__369227") + xlab("Diagnosis") + ylab("log10(s__369227 counts)")
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
