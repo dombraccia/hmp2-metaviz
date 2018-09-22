@@ -2,7 +2,7 @@
 title: "hmp2MetaViz-checklist"
 author: "Domenick Braccia"
 date: "September 21st, 2018"
-output: html_document
+output: rmarkdown::github_document
 ---
 
 ```{r setup, include=FALSE}
